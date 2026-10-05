@@ -5,16 +5,19 @@ engellerden (Domuz, Gülbahçe Rüzgârı, Fizik 101 Vizesi) kaç. Skor: **GANO*
 
 ## Kurulum ve çalıştırma
 ```bash
-pip install opencv-python mediapipe
+pip install -r requirements.txt
 python iyte_kacis.py
 ```
+Test edilen ortam: Python 3.13, MediaPipe 1.0.1, OpenCV 5.0 (Windows). MediaPipe'ın yeni Tasks API'sini (`mediapipe.tasks.python.vision`) kullanır; daha eski sürümler denenmedi.
 - İlk çalıştırmada yüz algılama modeli (~230 KB) otomatik indirilir.
 - Başka kamera: `python iyte_kacis.py --camera 1`
-- **Ayakta oynamak için (deneysel):** `python iyte_kacis.py --mode vucut` — tüm vücut pozundan başı bulur, 2-3 m uzaktan çalışır. Ilk çalıştırmada poz modeli (~6 MB) iner. Yüz takibine göre daha yavaş olabilir.
+- **Ayakta oynamak için (deneysel):** `python iyte_kacis.py --mode vucut` — tüm vücut pozundan başı bulur, 2-3 m uzaktan çalışır. İlk çalıştırmada poz modeli (~6 MB) iner. Yüz takibine göre daha yavaş olabilir.
 - Kamerasız otomatik test: `python iyte_kacis.py --selftest`
 
 ## Tuşlar
 `R` yeniden başla · `N` yeni oyuncu (isim değiştir) · `Q` / `ESC` çık
+
+İsim yazarken `Q`, `R` ve `N` harf olarak sayılır; bu ekranda yalnızca `ESC` çıkar. İsimde yalnızca ASCII harf/rakam kullanılabilir (`cv2.waitKey` Türkçe karakterleri okuyamaz; "Sule", "Caglar" gibi yazın).
 
 Açılışta isim sorulur (ENTER ile onayla). Oyun bitince final GANO'n ve ilk 5 sıralama gösterilir; skorlar `leaderboard.json` dosyasında saklanır (git'e girmez).
 
@@ -24,6 +27,7 @@ Açılışta isim sorulur (ENTER ile onayla). Oyun bitince final GANO'n ve ilk 5
 ## Notlar
 - Yüz kaybolursa oyun durur (haksız ölüm olmaz).
 - **Adil oyun:** Gizli bir kaçış koridoru ekran boyunca yavaşça süzülür; engeller o koridorun geçeceği yere doğmaz. Yani her an ulaşılabilir bir yol vardır. Otomatik test koridoru izleyen oyuncunun hiç ölmediğini doğrular.
+  Bu garanti **normal engeller** içindir; boss saldırıları ayrı kurallıdır (nişan yelpazesi oyuncunun iki yanından geçer, yağmurdaki boşluk oyuncuya yakın açılır, her saldırı öncesi uyarı verilir) ve bunlar için ayrı bir kazanılabilirlik testi yoktur.
 - Zorluk tavanı düşük tutulur (engel hızı en fazla 1.5x), uzaktan oynayanın çarpışma kutusu çok küçülmez.
 - Zorluk ve skor ayarları dosyanın başındaki sabitlerden değiştirilebilir.
 - Yüzüne sevimli bir **domuz burnu**, domuz kulakları ve allık eklenir; burun kafanı oynattıkça ezilir, çarpınca başında yıldızlar döner.

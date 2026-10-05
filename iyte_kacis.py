@@ -24,6 +24,7 @@ import json
 import math
 import os
 import random
+import shutil
 import sys
 import tempfile
 import time
@@ -96,12 +97,12 @@ _TR_MAP = str.maketrans("çğıöşüâÇĞİÖŞÜÂ", "cgiosuaCGIOSUA")
 
 def _unicode_text_ok() -> bool:
     """OpenCV Turkce harf cizebiliyor mu? (OpenCV 5+ evet; 4.x Hershey fontu '?' cizer.)"""
-    def render(ch):
+    def draw_char(ch):
         im = np.zeros((48, 80, 3), np.uint8)
         cv2.putText(im, ch, (5, 36), FONT, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
         return im
-    a = render("Ş")
-    return not (np.array_equal(a, render("?")) or np.array_equal(a, render("??")))
+    a = draw_char("Ş")
+    return not (np.array_equal(a, draw_char("?")) or np.array_equal(a, draw_char("??")))
 
 
 UNICODE_OK = _unicode_text_ok()
@@ -221,20 +222,47 @@ POSE_MODEL_URL = ("https://storage.googleapis.com/mediapipe-models/pose_landmark
 POSE_MODEL_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pose_landmarker_lite.task")
 
 
+MODEL_MIN_BYTES = 10_000
+DOWNLOAD_TIMEOUT = 30          # saniye
+
+
+def _model_ok(path: str) -> bool:
+    """Dosya var, yeterince buyuk ve HTML hata sayfasi degil mi?"""
+    try:
+        if os.path.getsize(path) < MODEL_MIN_BYTES:
+            return False
+        with open(path, "rb") as f:
+            return not f.read(512).lstrip().startswith(b"<")
+    except OSError:
+        return False
+
+
 def ensure_model(path: str = MODEL_FILE, url: str = MODEL_URL) -> bytes:
-    """Modeli dosyadan okur; yoksa indirir. Bayt olarak dondurur."""
-    if not os.path.isfile(path) or os.path.getsize(path) < 10_000:
+    """Modeli dosyadan okur; yoksa/bozuksa indirir. Her hata icin ayri, acik bir mesaj verir."""
+    def fail(msg: str):
+        print(f"[HATA] {msg}\nModeli elle indirip '{path}' olarak kaydedin:\n{url}")
+        sys.exit(1)
+
+    if not _model_ok(path):
         print(f"[BILGI] Model indiriliyor: {os.path.basename(path)}")
+        tmp = path + ".part"
         try:
-            tmp = path + ".part"
-            urllib.request.urlretrieve(url, tmp)
+            with urllib.request.urlopen(url, timeout=DOWNLOAD_TIMEOUT) as resp, open(tmp, "wb") as out:
+                shutil.copyfileobj(resp, out)
+        except OSError as exc:                       # ag hatasi, zaman asimi ya da gecici dosya yazilamadi
+            fail(f"Model indirilemedi (ag baglantisi ya da diske yazma): {exc}")
+        if not _model_ok(tmp):
+            os.remove(tmp)
+            fail("Indirilen dosya gecersiz (cok kucuk ya da bir hata sayfasi).")
+        try:
             os.replace(tmp, path)
-        except Exception as exc:  # ag hatasi vb.
-            print(f"[HATA] Model indirilemedi: {exc}\n"
-                  f"Su dosyayi elle indirip '{path}' olarak kaydedin:\n{url}")
-            sys.exit(1)
-    with open(path, "rb") as f:   # buffer olarak yukle: Turkce karakterli yollarda da calisir
-        return f.read()
+        except OSError as exc:
+            fail(f"Model '{path}' konumuna kaydedilemedi (izin?): {exc}")
+    try:
+        with open(path, "rb") as f:   # buffer olarak yukle: Turkce karakterli yollarda da calisir
+            return f.read()
+    except OSError as exc:
+        fail(f"Model dosyasi okunamadi: {exc}")
 
 
 @dataclass
@@ -407,9 +435,11 @@ def make_obstacle(kind: str, W: int, H: int, difficulty: float) -> Obstacle:
     elif kind == KIND_KALEM:      # toplanacak bonus
         w, h = W * 0.055, H * 0.12
         speed = H * 0.30
-    else:                         # KIND_PROJ: boss mermisi
+    elif kind == KIND_PROJ:       # boss mermisi
         w = h = W * 0.05
         speed = H * 0.5
+    else:
+        raise ValueError(f"bilinmeyen engel turu: {kind!r}")
     x = random.uniform(0, W - w)
     ob = Obstacle(kind, x, -h, w, h, speed)
     ob.seed = random.uniform(0, math.tau)
@@ -441,25 +471,44 @@ def make_projectile(cx: float, cy: float, W: int, H: int, vx: float, vy: float,
 # LEADERBOARD (JSON dosyasi)
 # --------------------------------------------------------------------------
 def load_leaderboard(path: str = LEADERBOARD_FILE) -> List[dict]:
-    """Kayitlari okur. Dosya yok/bozuksa bos liste doner (oyun asla cokmez)."""
+    """Kayitlari okur. Dosya yoksa (ilk calistirma) bos liste. Dosya bozuksa uyarir, '.bak'a
+    tasir (eski skorlar kaybolmasin) ve bos listeyle devam eder. Okunamiyorsa OSError firlatir."""
+    if not os.path.exists(path):
+        return []
+    with open(path, "r", encoding="utf-8") as f:
+        raw = f.read()
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        data = json.loads(raw)
+        if not isinstance(data, list):
+            raise ValueError("liste degil")
         return [e for e in data if isinstance(e, dict)
                 and isinstance(e.get("name"), str) and isinstance(e.get("gano"), (int, float))]
-    except (OSError, ValueError, TypeError):
+    except (ValueError, TypeError) as exc:
+        backup = path + ".bak"
+        print(f"[UYARI] Leaderboard dosyasi bozuk ({exc}); yedegi: {backup}")
+        try:
+            os.replace(path, backup)
+        except OSError as err:
+            print(f"[UYARI] Yedek alinamadi: {err}")
         return []
 
 
 def add_score(name: str, gano: float, path: str = LEADERBOARD_FILE) -> Tuple[int, List[dict]]:
     """Skoru ekler, dosyaya yazar. (oyuncunun sirasi [1'den], siralanmis liste) dondurur."""
-    entries = load_leaderboard(path)
+    writable = True
+    try:
+        entries = load_leaderboard(path)
+    except OSError as exc:                 # okunamayan dosyanin ustune yazip skorlari silme
+        print(f"[UYARI] Leaderboard okunamadi, kaydedilmeyecek: {exc}")
+        entries, writable = [], False
     mine = {"name": name, "gano": round(gano, 2), "date": time.strftime("%Y-%m-%d %H:%M")}
     entries.append(mine)
     # Puan yuksek olan ustte; esitlikte once yapan ustte (sort kararli, eski kayitlar once)
     entries.sort(key=lambda e: -e["gano"])
     rank = next(i for i, e in enumerate(entries) if e is mine) + 1
     entries = entries[:LEADERBOARD_SAVED]
+    if not writable:
+        return rank, entries
     try:                                   # atomik yazim: yarim dosya kalmasin
         fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(path)), suffix=".tmp")
         with os.fdopen(fd, "w", encoding="utf-8") as f:
@@ -928,6 +977,9 @@ class Game:
         self.boss = Boss(W / 2, -bh, bw, bh, BOSS_HP, BOSS_HP, target_y=H * 0.09 + bh / 2)
         self.set_banner("UYARI! MATH 255 FİNALİ", "Diferansiyel Denklemler geliyor...", RED, 3.0)
         self.shake, self.flash = 0.8, 0.5
+        for ob in self.obstacles:                    # normal engeller boss girerken dagilir
+            self.burst(ob.x + ob.w / 2, ob.y + ob.h / 2, 6, CRASH_COLORS.get(ob.kind, BOSS_COLORS), 160, 5, life=0.6)
+        self.obstacles.clear()
 
     def _update_boss(self, dt: float):
         b = self.boss
@@ -990,10 +1042,12 @@ class Game:
                 if i in (gap, gap + 1):
                     continue
                 self.obstacles.append(make_projectile((i + 0.5) * W / cols, -W * 0.03, W, H, 0.0, H * 0.38))
-        else:                                            # dalga
+        elif pattern == "dalga":
             for k in range(4):
                 self.obstacles.append(make_projectile(sx + (k - 1.5) * W * 0.17, sy, W, H, 0.0, H * 0.42,
                                                       amp=W * 0.05, phase=k * 1.3))
+        else:
+            raise ValueError(f"bilinmeyen boss saldirisi: {pattern!r}")
         self.burst(sx, sy, 14, BOSS_COLORS, 220, 6, gravity=0.2, life=0.7)
 
     def _damage_boss(self):
@@ -1971,9 +2025,10 @@ def main(camera_index: int = 0, mode: str = "kafa"):
 
             frame = fit_frame(cv2.flip(frame, 1))      # ayna efekti (yatay cevir)
             H, W = frame.shape[:2]
-            if game is None or (game.W, game.H) != (W, H):
-                game = Game(W, H, best_gano=game.best_gano if game else 0.0,
-                            name=game.name if game else "", intro=game is None)
+            if game is None:
+                game = Game(W, H, intro=True)
+            elif (game.W, game.H) != (W, H):             # kamera boyutu degisirse oyun durumu korunur
+                frame = cv2.resize(frame, (game.W, game.H))
 
             now = time.perf_counter()
             dt = min(now - last, 0.05)                 # takilmalarda sicrama olmasin
@@ -2073,7 +2128,7 @@ def selftest():
     g2.reset()
     assert g2.state == STATE_WAIT and g2.dodged == 0 and not g2.obstacles
     print("[OK] Duraklatma ve reset")
-    assert [grade_letter(x) for x in (4.0, 3.5, 3.0, 2.5, 2.0, 1.5, 1.0, 0.5, 0.0)] ==         ["AA", "BA", "BB", "CB", "CC", "DC", "DD", "FD", "FF"]
+    assert [grade_letter(x) for x in (4.0, 3.5, 3.0, 2.5, 2.0, 1.5, 1.0, 0.5, 0.0)] == ["AA", "BA", "BB", "CB", "CC", "DC", "DD", "FD", "FF"]
     # Kacilan engel harf notu uretmeli; iz parcaciklari olusmali
     g5 = Game(W, H, name="Bot", lb_path=lb)
     g5.state, g5.px, g5.py = STATE_PLAY, 20.0, H * 0.9
@@ -2108,6 +2163,7 @@ def selftest():
         g3.update(1 / 60, f)
         if g3.state == STATE_OVER:
             break
+    assert g3.survival > 0, "bot hic oynamadi"
     print(f"[OK] Kacis botu: durum={g3.state}, GANO={g3.gano:.2f}, kacilan={g3.dodged}")
 
     # Yeni dersler: hareket + cizim; kilit acma; kalem cocuk gorseli
@@ -2194,19 +2250,35 @@ def selftest():
     assert min(runs) >= 25, f"koridor engelleri cok seyreltiyor: {runs}"
     print(f"[OK] Kazanilabilirlik: koridoru izleyen oyuncu 12/12 oyunda 90 sn hayatta, kacilan engel >= {min(runs)}")
 
-    # Leaderboard: kayit, siralama, tekrar okuma, bozuk dosya
-    r1, _ = add_score("A", 1.0, lb)
-    r2, ents = add_score("B", 2.0, lb)
-    assert r2 == 1 and [e["name"] for e in ents][:2] == ["B", "A"] or r2 >= 1
-    assert load_leaderboard(lb) == ents
+    # Leaderboard: kayit, siralama, tekrar okuma, bozuk dosya yedegi
+    lb2 = os.path.join(os.path.dirname(lb), "rank.json")
+    r1, _ = add_score("A", 1.0, lb2)
+    r2, ents = add_score("B", 2.0, lb2)
+    assert r1 == 1 and r2 == 1 and [e["name"] for e in ents] == ["B", "A"], (r1, r2, ents)
+    assert load_leaderboard(lb2) == ents
+    assert add_score("C", 1.5, lb2)[0] == 2
+    ents = load_leaderboard(lb2)
     gs = [e["gano"] for e in ents]
-    assert gs == sorted(gs, reverse=True)
-    with open(lb, "w") as f:
+    assert gs == sorted(gs, reverse=True) and len(ents) == 3
+    with open(lb2, "w") as f:
         f.write("{bozuk")
-    assert load_leaderboard(lb) == []
-    assert add_score("C", 0.5, lb)[0] == 1
+    assert load_leaderboard(lb2) == []
+    assert not os.path.exists(lb2), "bozuk dosya yerinde kaldi"
+    with open(lb2 + ".bak") as f:
+        assert f.read() == "{bozuk", "bozuk dosya yedeklenmedi"
+    assert add_score("D", 0.5, lb2)[0] == 1
     assert load_leaderboard(os.path.join(os.path.dirname(lb), "yok.json")) == []
-    print("[OK] Leaderboard (kayit/siralama/bozuk dosya)")
+    # Bilinmeyen tur/saldiri sessizce gecmemeli
+    gz = Game(W, H, name="X", lb_path=lb)
+    gz._start_boss()
+    for bad in (lambda: make_obstacle("yok", W, H, 1.0), lambda: gz._boss_fire("yok")):
+        try:
+            bad()
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("bilinmeyen tur kabul edildi")
+    print("[OK] Leaderboard (kayit/siralama/bozuk dosya yedegi)")
 
     # Oyun bitince skor yazilmis olmali (adim 2 ve 4 ayni dosyaya yazdi)
     assert game.rank >= 1 and game.board, "game over leaderboard'a yazmadi"
