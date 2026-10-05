@@ -32,6 +32,23 @@ Açılışta isim sorulur (ENTER ile onayla). Oyun bitince final GANO'n ve ilk 5
 - Zorluk ve skor ayarları dosyanın başındaki sabitlerden değiştirilebilir.
 - Yüzüne sevimli bir **domuz burnu**, domuz kulakları ve allık eklenir; burun kafanı oynattıkça ezilir, çarpınca başında yıldızlar döner.
 
+## Proje yapısı
+`iyte_kacis.py` yalnızca başlatıcıdır; kod `hocam_domuz/` paketindedir:
+
+| Dosya | Sorumluluk |
+|---|---|
+| `config.py` | Tüm sabitler: ayarlar, renkler, durumlar, engel/boss tabloları |
+| `tracking.py` | Kamera, model indirme, yüz (`FaceTracker`) ve vücut (`PoseTracker`) takibi |
+| `entities.py` | Engeller, boss, kalem çocuk, parçacıklar, harf notu |
+| `game.py` | Oyun durum makinesi: oyuncu, engel üretimi, kaçış koridoru, çarpışma, skor |
+| `boss.py` | MATH 255 boss'u ve kalem çocuk (`Game`'e karışan mixin) |
+| `leaderboard.py` | Skor tablosu (JSON) |
+| `sprites.py` | Engel/boss/kalem çocuk sprite çizimleri |
+| `drawing.py` | Yazı (Türkçe yedekli), yuvarlak kutu, vinyet gibi çizim yardımcıları |
+| `world.py`, `hud.py`, `screens.py`, `render.py` | Oyun dünyası, arayüz, tam ekran menüler ve ana çizim |
+| `app.py` | Ana döngü ve komut satırı |
+| `selftest.py` | Kamerasız otomatik test (görüntüleri geçici klasöre yazar) |
+
 ## Dersler ve Boss (MATH 255)
 GANO yükseldikçe yeni dersler açılır:
 
