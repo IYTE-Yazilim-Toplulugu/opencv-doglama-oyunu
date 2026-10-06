@@ -3,6 +3,13 @@
 Kameradan oynanan "dodge" oyunu. Kafanı sağa-sola hareket ettirerek İYTE kampüsündeki
 engellerden (Domuz, Gülbahçe Rüzgârı, Fizik 101 Vizesi) kaç. Skor: **GANO** (0.00 → 4.00).
 
+## Görünüm (8-bit arcade)
+| Intro | Oyun |
+|---|---|
+| ![Intro](docs/arcade/intro.png) | ![Oyun](docs/arcade/oyun.png) |
+| **Boss (MATH 255)** | **Oyun sonu** |
+| ![Boss](docs/arcade/boss.png) | ![Oyun sonu](docs/arcade/oyun-sonu.png) |
+
 ## Kurulum ve çalıştırma
 ```bash
 pip install -r requirements.txt
