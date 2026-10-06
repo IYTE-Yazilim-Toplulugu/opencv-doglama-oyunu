@@ -149,6 +149,14 @@ class PoseTracker:
         self.detector.close()
 
 
+def scale_face(face: Optional[FaceInfo], sx: float, sy: float) -> Optional[FaceInfo]:
+    """Yuz bilgisini baska bir cozunurluge (ornegin 960x540 oyun uzayina) olcekler."""
+    if face is None:
+        return None
+    x1, y1, x2, y2 = face.box
+    return FaceInfo(face.nose_x * sx, face.nose_y * sy, (x1 * sx, y1 * sy, x2 * sx, y2 * sy))
+
+
 def open_camera(index: int) -> cv2.VideoCapture:
     """Kamerayi acar. Windows'ta once DirectShow, olmazsa varsayilan arka uc denenir."""
     backends = [cv2.CAP_DSHOW, cv2.CAP_ANY] if sys.platform.startswith("win") else [cv2.CAP_ANY]

@@ -11,11 +11,12 @@ python iyte_kacis.py
 Test edilen ortam: Python 3.13, MediaPipe 1.0.1, OpenCV 5.0 (Windows). MediaPipe'ın yeni Tasks API'sini (`mediapipe.tasks.python.vision`) kullanır; daha eski sürümler denenmedi.
 - İlk çalıştırmada yüz algılama modeli (~230 KB) otomatik indirilir.
 - Başka kamera: `python iyte_kacis.py --camera 1`
+- Görünüm: varsayılan **8-bit arcade** (pixel-art İYTE kampüsü, kamera köşede küçük önizleme). Kamera görüntüsü üzerinde oynamak için `--stil klasik`.
 - **Ayakta oynamak için (deneysel):** `python iyte_kacis.py --mode vucut` — tüm vücut pozundan başı bulur, 2-3 m uzaktan çalışır. İlk çalıştırmada poz modeli (~6 MB) iner. Yüz takibine göre daha yavaş olabilir.
 - Kamerasız otomatik test: `python iyte_kacis.py --selftest`
 
 ## Tuşlar
-`R` yeniden başla · `N` yeni oyuncu (isim değiştir) · `Q` / `ESC` çık
+`R` yeniden başla · `N` yeni oyuncu (isim değiştir) · `Q` / `ESC` çık · `C` (arcade) kamera önizlemesi: küçük → gizli → arka plan (Game Boy yeşili)
 
 İsim yazarken `Q`, `R` ve `N` harf olarak sayılır; bu ekranda yalnızca `ESC` çıkar. İsimde yalnızca ASCII harf/rakam kullanılabilir (`cv2.waitKey` Türkçe karakterleri okuyamaz; "Sule", "Caglar" gibi yazın).
 
@@ -43,9 +44,11 @@ Açılışta isim sorulur (ENTER ile onayla). Oyun bitince final GANO'n ve ilk 5
 | `game.py` | Oyun durum makinesi: oyuncu, engel üretimi, kaçış koridoru, çarpışma, skor |
 | `boss.py` | MATH 255 boss'u ve kalem çocuk (`Game`'e karışan mixin) |
 | `leaderboard.py` | Skor tablosu (JSON) |
-| `sprites.py` | Engel/boss/kalem çocuk sprite çizimleri |
+| `sprites.py` | Engel/boss/kalem çocuk sprite çizimleri (yüksek çözünürlük; arcade modunda piksel-art'a çevrilir) |
+| `pixel.py` | 8-bit motoru: 32 renkli palet, sprite piksellendirme, 5x7 bitmap font (Türkçe karakterli) |
+| `retro_bg.py`, `retro.py` | Pixel-art İYTE kampüsü arka planı; arcade avatar, HUD ve ekranlar |
 | `drawing.py` | Yazı (Türkçe yedekli), yuvarlak kutu, vinyet gibi çizim yardımcıları |
-| `world.py`, `hud.py`, `screens.py`, `render.py` | Oyun dünyası, arayüz, tam ekran menüler ve ana çizim |
+| `world.py`, `hud.py`, `screens.py`, `render.py` | Klasik görünüm: oyun dünyası, arayüz, tam ekran menüler ve ana çizim |
 | `app.py` | Ana döngü ve komut satırı |
 | `selftest.py` | Kamerasız otomatik test (görüntüleri geçici klasöre yazar) |
 

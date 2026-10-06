@@ -6,6 +6,7 @@ import os
 import random
 import sys
 import tempfile
+import time
 
 from .config import (
     BOSS_HP,
@@ -29,12 +30,14 @@ from .config import (
     STATE_PLAY,
     STATE_WAIT,
 )
-from .entities import FloatText, grade_letter, make_obstacle
+from .entities import FloatText, Helper, grade_letter, make_obstacle, make_projectile
 from .game import Game
 from .leaderboard import add_score, load_leaderboard
+from .pixel import LH, LW, MISSING, PALETTE
 from .render import render
+from .retro import render_retro, to_screen
 from .sprites import boy_sprite
-from .tracking import FaceInfo, FaceTracker
+from .tracking import FaceInfo, FaceTracker, scale_face
 
 OUT_DIR = os.path.join(tempfile.gettempdir(), "hocam_domuz_selftest")   # test goruntuleri buraya
 
@@ -290,4 +293,40 @@ def selftest():
                 out = render(np.full((H2, W2, 3), 90, np.uint8), g4)
                 assert out.shape == (H2, W2, 3)
     print("[OK] Cizim tamam (selftest_*.png, 640x480 ve 1280x720 dahil)")
+    # 8-bit arcade modu: her ekran/kamera modu cokmeden cizilir, SADECE palet renkleri kullanilir
+    # (8-bit gorunumun garantisi), fontta eksik karakter yok, sprite'lar ve ekranlar makul surede cizilir
+    pal = {tuple(c) for c in PALETTE.values()}
+    cam = np.random.RandomState(1).randint(30, 220, (540, 960, 3)).astype(np.uint8)
+    gr = Game(960, 540, name="Rüzgâr", lb_path=lb, fixed_box=(960 * 0.13, 540 * 0.24))
+    gr.update_player(FaceInfo(500, 330, (440, 270, 560, 390)))
+    kinds = (KIND_DOMUZ, KIND_RUZGAR, KIND_VIZE, KIND_KIMYA, KIND_DEVRE, KIND_TERMO, KIND_KALEM)
+    gr.obstacles = [make_obstacle(k, 960, 540, 1.0) for k in kinds] + [make_projectile(300, 250, 960, 540, 0, 100)]
+    for i, ob in enumerate(gr.obstacles):
+        ob.x, ob.y = 30 + i * 105, 90 + (i % 2) * 150
+    gr.floats = [FloatText(300, 380, "BB", GOLD, 1.0, 1.1)]
+    gr.board = [{"name": n, "gano": 3.0 - i * 0.4} for i, n in enumerate(("AYŞE", "MEHMET", "ZEYNEP", "CAN", "DENİZ", "ECE"))]
+    gr.rank, gr.state = 6, STATE_PLAY
+    gr._start_boss()
+    gr.boss.y, gr.boss.state, gr.boss.charge, gr.helper = gr.boss.target_y, "fight", 0.4, Helper(0.55, 500, 330)
+    t0 = time.perf_counter()
+    frames = 0
+    for st in (STATE_INTRO, STATE_NAME, STATE_WAIT, STATE_COUNTDOWN, STATE_PLAY, STATE_OVER):
+        for cam_mode in (0, 1, 2):
+            for anim in (0.0, 1.0, 5.0):
+                gr.state, gr.anim_t, gr.over_t, gr.countdown = st, anim, anim, 2.5
+                msg = list(DEATH_MESSAGES.values())[frames % len(DEATH_MESSAGES)]
+                gr.death_msg, gr.banner, gr.banner_sub, gr.banner_t, gr.banner_dur = msg, "MATH 255 GEÇİLDİ!", "GANO 3.50'ye yükseldi!", 1.0, 3.0
+                cvs = render_retro(gr, cam, cam_mode)
+                frames += 1
+                assert cvs.shape == (LH, LW, 3) and cvs.dtype == np.uint8
+                used = {tuple(c) for c in np.unique(cvs.reshape(-1, 3), axis=0).tolist()}
+                assert used <= pal, f"palet disi renk ({st}, kamera {cam_mode}): {sorted(used - pal)[:3]}"
+                if cam_mode == 0 and anim == 5.0:
+                    cv2.imwrite(os.path.join(OUT_DIR, f"retro_{st}.png"), to_screen(cvs))
+    assert not MISSING, f"fontta olmayan karakterler: {MISSING}"
+    ms = (time.perf_counter() - t0) / frames * 1000
+    assert ms < 60, f"arcade cizimi cok yavas: {ms:.0f} ms/kare"
+    sf = scale_face(FaceInfo(10, 20, (0, 0, 20, 40)), 2, 3)
+    assert (sf.nose_x, sf.nose_y, sf.box) == (20, 60, (0, 0, 40, 120)) and scale_face(None, 2, 3) is None
+    print(f"[OK] Arcade (8-bit) modu: {frames} kare, yalniz palet renkleri, {ms:.0f} ms/kare")
     print("TUM TESTLER GECTI")

@@ -24,13 +24,13 @@ def _canvas(w: int, h: int, pad: int) -> np.ndarray:
     return np.zeros((h + 2 * pad, w + 2 * pad, 4), np.uint8)
 
 
-def sprite_domuz(w: int, h: int, t: float, seed: float) -> np.ndarray:
+def sprite_domuz(w: int, h: int, t: float, seed: float, speed_lines: bool = True) -> np.ndarray:
     """Kizgin yaban domuzu (onden gorunum). Hiz cizgileri t ile kayar."""
     pad = int(max(w, h) * 0.4)
     cv = _canvas(w, h, pad)
     cx, cy = pad + w // 2, pad + h // 2
     # Hiz cizgileri: domuz hizla asagi geliyor
-    for i in (-1, 0, 1):
+    for i in (-1, 0, 1) if speed_lines else ():
         x = cx + int(i * w * 0.28)
         off = int((t * 420 + i * 57 + seed * 13) % 36)
         y1 = pad - int(h * 0.06) - off // 2
@@ -232,7 +232,7 @@ def sprite_kalem(w: int, h: int, t: float, seed: float) -> np.ndarray:
     return cv
 
 
-def sprite_boss(w: int, h: int, t: float, look: float, hit: float, charge: float) -> np.ndarray:
+def sprite_boss(w: int, h: int, t: float, look: float, hit: float, charge: float, equations: bool = True) -> np.ndarray:
     """MATH 255 - Diferansiyel Denklemler boss'u: boynuzlu, kirmizi gozlu, dislek bir yaratik.
     Etrafinda denklemler doner, altinda dalgalanan tentaculler var. look: -1..1 (gozler oyuncuya bakar),
     hit: vurus beyazlamasi (0..1), charge: saldiri hazirligi (kirmizi aura)."""
@@ -286,7 +286,7 @@ def sprite_boss(w: int, h: int, t: float, look: float, hit: float, charge: float
         cv2.fillPoly(cv, [np.array([[tx - int(mw / 8), my - int(mh * 0.55)], [tx + int(mw / 8), my - int(mh * 0.55)],
                                     [tx, my + int(mh * 0.1)]], np.int32)], (245, 245, 245, 255), cv2.LINE_AA)
     # Etrafinda donen denklemler
-    for i, eq in enumerate(("y''+4y=0", "dy/dx", "L{f(t)}", "e^(st)")):
+    for i, eq in enumerate(("y''+4y=0", "dy/dx", "L{f(t)}", "e^(st)") if equations else ()):
         a = t * 0.9 + i * math.pi / 2
         tx, ty = cx + int(math.cos(a) * w * 0.50) - int(w * 0.07), cy + int(math.sin(a) * h * 0.62)
         cv2.putText(cv, eq, (tx, ty), FONT, max(0.32, 0.5 * s), (255, 200, 255, 255), max(1, int(s * 1.6)), cv2.LINE_AA)
