@@ -118,7 +118,9 @@ def draw_avatar(cv, game: Game):
     bob = 1 if (st % 8) in (2, 3) else 0
     blit(cv, spr, cx, cy - bob)
     if game.state == STATE_PLAY:                                  # carpisma cekirdegi (burun): kucuk beyaz nokta
-        cv[int(game.py / SCALE), int(game.px / SCALE)] = C["white"]
+        core_x, core_y = int(game.px / SCALE), int(game.py / SCALE)
+        if 0 <= core_x < LW and 0 <= core_y < LH:                 # burun yarim kare disindaysa cokmesin
+            cv[core_y, core_x] = C["white"]
     if dizzy:                                                     # basin ustunde donen yildizlar
         for k in range(3):
             a = game.anim_t * 5 + k * 2.1
@@ -225,8 +227,9 @@ def draw_hud_px(cv, game: Game):
     if game.name:
         nm = upper_tr(game.name)
         w = text_width(nm) + 8
-        box(cv, LW - w - 4, 3, LW - 3, 16, C["maroon"], C["gold"], shadow=False)
-        draw_text(cv, nm, LW - w // 2 - 3, 6, C["white"], anchor="c", shadow=None)
+        by = 15 if game.boss is not None else 3                   # boss can seridini ortmesin
+        box(cv, LW - w - 4, by, LW - 3, by + 13, C["maroon"], C["gold"], shadow=False)
+        draw_text(cv, nm, LW - w // 2 - 3, by + 3, C["white"], anchor="c", shadow=None)
     b = game.boss
     if b is not None:                                             # boss can seridi (ust serit)
         rect(cv, 122, 1, 258, 13, C["ink"])
@@ -441,6 +444,8 @@ def render_retro(game: Game, cam=None, cam_mode: int = 0) -> np.ndarray:
 def to_screen(cv: np.ndarray, scanlines: bool = True) -> np.ndarray:
     """320x180 tuvali 960x540'a en-yakin-komsu ile buyutur; istege bagli hafif CRT tarama cizgileri."""
     up = cv2.resize(cv, (LW * SCALE, LH * SCALE), interpolation=cv2.INTER_NEAREST)
-    if scanlines:
-        up[SCALE - 1::SCALE] = (up[SCALE - 1::SCALE].astype(np.uint16) * 215 // 256).astype(np.uint8)
+    if scanlines:                                                 # koyu satirlar da palet renkleri olsun
+        dark = cv.copy()
+        shade(dark, 0.82)
+        up[SCALE - 1::SCALE] = cv2.resize(dark, (LW * SCALE, LH * SCALE), interpolation=cv2.INTER_NEAREST)[SCALE - 1::SCALE]
     return up

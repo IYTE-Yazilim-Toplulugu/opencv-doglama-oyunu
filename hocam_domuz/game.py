@@ -138,7 +138,8 @@ class Game(BossMixin):
         self.face_visible = face is not None
         if face is None:
             return
-        cy = (face.box[1] + face.box[3]) / 2
+        # sabit kutu modunda hitbox merkezi burun ucudur (poz modunda kutu asimetrik olabilir)
+        cy = face.nose_y if self.fixed_box else (face.box[1] + face.box[3]) / 2
         if self.px is None:
             self.px, self.py, self.ny = face.nose_x, cy, face.nose_y
         else:

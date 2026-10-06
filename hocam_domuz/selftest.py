@@ -326,6 +326,15 @@ def selftest():
     assert not MISSING, f"fontta olmayan karakterler: {MISSING}"
     ms = (time.perf_counter() - t0) / frames * 1000
     assert ms < 60, f"arcade cizimi cok yavas: {ms:.0f} ms/kare"
+    scr = to_screen(render_retro(gr, cam, 0))                    # tarama cizgileri dahil son goruntu de paletli
+    assert {tuple(c) for c in np.unique(scr.reshape(-1, 3), axis=0).tolist()} <= pal, "tarama cizgileri palet disi"
+    for nx, ny in ((-80, 40), (1200, 700), (500, -90)):          # burun kare disindayken cizim cokmemeli
+        gr.state, gr.helper = STATE_PLAY, None
+        gr.update_player(FaceInfo(nx, ny, (nx - 60, ny - 60, nx + 60, ny + 60)))
+        render_retro(gr, cam, 0)
+    gf = Game(960, 540, lb_path=lb, fixed_box=(125, 130))
+    gf.update_player(FaceInfo(500, 330, (440, 200, 560, 500)))   # kutu merkezi 350, burun 330
+    assert abs(gf.py - 330) < 1e-6 and gf.player_hitbox()[1] < 330 < gf.player_hitbox()[3], "hitbox burunda degil"
     sf = scale_face(FaceInfo(10, 20, (0, 0, 20, 40)), 2, 3)
     assert (sf.nose_x, sf.nose_y, sf.box) == (20, 60, (0, 0, 40, 120)) and scale_face(None, 2, 3) is None
     print(f"[OK] Arcade (8-bit) modu: {frames} kare, yalniz palet renkleri, {ms:.0f} ms/kare")
