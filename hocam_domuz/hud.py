@@ -48,7 +48,7 @@ def grade_title(gano: float) -> str:
     if gano >= 2.0:
         return "GEÇER NOT"
     if gano >= 1.0:
-        return "BÜTÜNLEMEYE KALDIN"
+        return "YAZ OKULUNA KALDIN"
     return "DERSTEN KALDIN"
 
 
