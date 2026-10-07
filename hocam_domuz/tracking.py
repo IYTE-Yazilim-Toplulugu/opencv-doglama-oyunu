@@ -75,7 +75,10 @@ class FaceInfo:
 
 
 class FaceTracker:
-    """MediaPipe FaceDetector'u sarar; en buyuk yuzu ve burun ucunu dondurur."""
+    """MediaPipe FaceDetector'u sarar; kalabalikta tek yuz secer (ortadaki, sonra ona kilitlenir)."""
+
+    BACKGROUND_RATIO = 0.6      # en buyuk yuzun genisliginin bunun altindakiler arka plan sayilir
+    LOCK_LOSS_SECONDS = 0.6     # kilitli yuz bu kadar kayboluysa yeniden ortadakini sec
 
     def __init__(self):
         options = vision.FaceDetectorOptions(
@@ -85,6 +88,35 @@ class FaceTracker:
         )
         self.detector = vision.FaceDetector.create_from_options(options)
         self._last_ts = -1
+        self._lock = None           # kilitli yuzun son (merkez x, merkez y, genislik)
+        self._lock_seen = 0.0
+
+    def _pick(self, detections, frame_w: int):
+        """Arka plan yuzlerini eler; kilitli yuz varsa en yakinini, yoksa en ortadakini secer.
+        Yalnizca 'en buyuk' secilseydi yan yana iki kisi arasinda karakter sicrardi."""
+        widest = max(d.bounding_box.width for d in detections)
+        near = [d for d in detections if d.bounding_box.width >= widest * self.BACKGROUND_RATIO]
+
+        def center(d):
+            b = d.bounding_box
+            return b.origin_x + b.width / 2, b.origin_y + b.height / 2
+
+        now = time.monotonic()
+        if self._lock is not None and now - self._lock_seen <= self.LOCK_LOSS_SECONDS:
+            lx, ly, lw = self._lock
+            best = min(near, key=lambda d: (center(d)[0] - lx) ** 2 + (center(d)[1] - ly) ** 2)
+            cx, cy = center(best)
+            if (cx - lx) ** 2 + (cy - ly) ** 2 <= (1.5 * lw) ** 2:   # ayni kisi: hizli kafa hareketini de kapsar
+                det = best
+            else:
+                det = None
+        else:
+            det = None
+        if det is None:                                   # kilit yok/kayip: ekranin ortasina en yakin yuz
+            det = min(near, key=lambda d: abs(center(d)[0] - frame_w / 2))
+        cx, cy = center(det)
+        self._lock, self._lock_seen = (cx, cy, det.bounding_box.width), now
+        return det
 
     def detect(self, frame_bgr: np.ndarray) -> Optional[FaceInfo]:
         h, w = frame_bgr.shape[:2]
@@ -95,9 +127,7 @@ class FaceTracker:
         result = self.detector.detect_for_video(mp_image, ts)
         if not result.detections:
             return None
-        # Birden fazla yuz varsa en buyugunu (kameraya en yakin) sec
-        det = max(result.detections,
-                  key=lambda d: d.bounding_box.width * d.bounding_box.height)
+        det = self._pick(result.detections, w)
         bb = det.bounding_box
         box = (bb.origin_x, bb.origin_y, bb.origin_x + bb.width, bb.origin_y + bb.height)
         if len(det.keypoints) > NOSE_KEYPOINT:

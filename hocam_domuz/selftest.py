@@ -7,6 +7,7 @@ import random
 import sys
 import tempfile
 import time
+from types import SimpleNamespace
 
 from .config import (
     BOSS_HP,
@@ -54,8 +55,18 @@ def selftest():
     # 1) MediaPipe model + bos kare (yuz yok -> None donmeli)
     tracker = FaceTracker()
     assert tracker.detect(np.zeros((H, W, 3), np.uint8)) is None
+    # kalabalik: arka plan elenir, ortadaki secilir, kilit yan yana yuze atlamaz
+    def fake(cx, cy, wd):
+        bb = SimpleNamespace(origin_x=cx - wd / 2, origin_y=cy - wd / 2, width=wd, height=wd)
+        return SimpleNamespace(bounding_box=bb)
+    left, mid, bg = fake(150, 240, 120), fake(330, 240, 110), fake(320, 100, 40)
+    assert tracker._pick([left, mid, bg], W) is mid, "ortadaki yuz secilmeli, arka plan elenmeli"
+    mid2, left2 = fake(335, 242, 112), fake(345, 240, 125)       # sol yuz ortaya yaklasti ve buyudu
+    assert tracker._pick([left2, mid2], W) is mid2, "kilit ayni kisiden ayrilmamali"
+    tracker._lock_seen -= 5                                       # kilit zaman asimi: yeniden ortadaki
+    assert tracker._pick([fake(100, 240, 120), fake(300, 240, 100)], W).bounding_box.origin_x == 250
     tracker.close()
-    print("[OK] MediaPipe FaceDetector calisiyor")
+    print("[OK] MediaPipe FaceDetector calisiyor, kalabalikta tek yuz secimi")
 
     # 2) Oyun akisi: sahte yuz ile bekleme -> geri sayim -> oyun -> carpisma
     # Isim ekrani: baslangic durumu, tus girisi, bos isimle ENTER kabul edilmemeli
