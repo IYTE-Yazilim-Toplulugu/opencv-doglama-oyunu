@@ -9,14 +9,25 @@ from .config import STATE_INTRO, STATE_NAME, WINDOW_NAME
 from .drawing import apply_vignette
 from .game import Game
 from .render import render
+from .retro import render_retro, to_screen
 from .selftest import selftest
-from .tracking import FaceTracker, PoseTracker, fit_frame, open_camera
+from .tracking import FaceTracker, PoseTracker, fit_frame, open_camera, scale_face
 
 
-def main(camera_index: int = 0, mode: str = "kafa"):
+ARCADE_W, ARCADE_H = 960, 540          # arcade modunda oyun uzayi sabittir (kamera boyutundan bagimsiz)
+
+
+def new_arcade_game(**kw) -> Game:
+    # oyuncu kutusu yuz boyutundan bagimsiz sabit (uzaktan/yakindan oynayan icin adil)
+    return Game(ARCADE_W, ARCADE_H, fixed_box=(ARCADE_W * 0.13, ARCADE_H * 0.24), **kw)
+
+
+def main(camera_index: int = 0, mode: str = "kafa", stil: str = "arcade"):
     tracker = PoseTracker() if mode == "vucut" else FaceTracker()
     cap = open_camera(camera_index)
-    game: Optional[Game] = None
+    arcade = stil == "arcade"
+    game: Optional[Game] = new_arcade_game(intro=True) if arcade else None
+    cam_mode = 0                       # C tusu: 0 kucuk onizleme, 1 gizli, 2 arka plan
     last = time.perf_counter()
     cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
 
@@ -31,7 +42,7 @@ def main(camera_index: int = 0, mode: str = "kafa"):
             H, W = frame.shape[:2]
             if game is None:
                 game = Game(W, H, intro=True)
-            elif (game.W, game.H) != (W, H):             # kamera boyutu degisirse oyun durumu korunur
+            elif not arcade and (game.W, game.H) != (W, H):   # kamera boyutu degisirse oyun durumu korunur
                 frame = cv2.resize(frame, (game.W, game.H))
 
             now = time.perf_counter()
@@ -39,14 +50,23 @@ def main(camera_index: int = 0, mode: str = "kafa"):
             last = now
 
             face = tracker.detect(frame)               # yuz/burun tespiti (ham kare)
-            frame = apply_vignette(frame)              # sinematik kenar karartma
-            game.update(dt, face)                      # oyun mantigi
-            cv2.imshow(WINDOW_NAME, render(frame, game))
+            if arcade:
+                game.update(dt, scale_face(face, ARCADE_W / W, ARCADE_H / H))
+                cv2.imshow(WINDOW_NAME, to_screen(render_retro(game, frame, cam_mode)))
+            else:
+                frame = apply_vignette(frame)          # sinematik kenar karartma
+                game.update(dt, face)                  # oyun mantigi
+                cv2.imshow(WINDOW_NAME, render(frame, game))
 
             key = cv2.waitKey(1) & 0xFF
             if key == 27:                              # ESC her durumda cikar
                 break
-            if game.state == STATE_INTRO:              # herhangi bir tus intro'yu gecer
+            if key in (ord("v"), ord("V")) and game.state != STATE_NAME:   # V: arcade <-> klasik
+                arcade = not arcade
+                intro = game.state == STATE_INTRO
+                kw = dict(best_gano=game.best_gano, name=game.name, intro=intro)
+                game = new_arcade_game(**kw) if arcade else Game(W, H, **kw)   # boyutlar farkli: tur bastan baslar
+            elif game.state == STATE_INTRO:            # herhangi bir tus intro'yu gecer
                 if key != 255 and game.anim_t > 0.3:
                     game.state = STATE_NAME
             elif game.state == STATE_NAME:             # isim yazilirken Q/R harf sayilir
@@ -57,6 +77,8 @@ def main(camera_index: int = 0, mode: str = "kafa"):
                 game.reset()
             elif key in (ord("n"), ord("N")):
                 game.new_player()
+            elif key in (ord("c"), ord("C")) and arcade:
+                cam_mode = (cam_mode + 1) % 3
             # Pencere X ile kapatildiysa cik
             if cv2.getWindowProperty(WINDOW_NAME, cv2.WND_PROP_VISIBLE) < 1:
                 break
@@ -71,6 +93,9 @@ def cli():
     parser.add_argument("--camera", type=int, default=0, help="kamera indeksi (varsayilan 0)")
     parser.add_argument("--mode", choices=("kafa", "vucut"), default="kafa",
                         help="kafa: oturarak (yuz takibi) | vucut: ayakta, uzaktan (poz takibi)")
+    parser.add_argument("--stil", choices=("arcade", "klasik"), default="arcade",
+                        help="baslangic gorunumu; oyun icinde V tusuyla degisir. "
+                        "arcade: 8-bit pixel (varsayilan) | klasik: kamera goruntusu uzerinde")
     parser.add_argument("--selftest", action="store_true", help="kamerasiz otomatik test")
     args = parser.parse_args()
-    selftest() if args.selftest else main(args.camera, args.mode)
+    selftest() if args.selftest else main(args.camera, args.mode, args.stil)

@@ -49,11 +49,12 @@ class Game(BossMixin):
     """Oyunun tum durumunu tutar: engeller, skor, durum makinesi."""
 
     def __init__(self, W: int, H: int, best_gano: float = 0.0, name: str = "",
-                 lb_path: str = LEADERBOARD_FILE, intro: bool = False):
+                 lb_path: str = LEADERBOARD_FILE, intro: bool = False, fixed_box=None):
         self.W, self.H = W, H
         self.best_gano = best_gano
         self.name = name              # oyuncu ismi (reset'te korunur)
         self.lb_path = lb_path
+        self.fixed_box = fixed_box    # (genislik, yukseklik): verilirse oyuncu kutusu yuz boyutundan bagimsiz sabit olur
         self.anim_t = 0.0             # arayuz animasyonlari icin surekli akan zaman
         self.reset()
         if intro:                     # sadece uygulama acilisinda: topluluk intro'su
@@ -137,7 +138,8 @@ class Game(BossMixin):
         self.face_visible = face is not None
         if face is None:
             return
-        cy = (face.box[1] + face.box[3]) / 2
+        # sabit kutu modunda hitbox merkezi burun ucudur (poz modunda kutu asimetrik olabilir)
+        cy = face.nose_y if self.fixed_box else (face.box[1] + face.box[3]) / 2
         if self.px is None:
             self.px, self.py, self.ny = face.nose_x, cy, face.nose_y
         else:
@@ -148,6 +150,9 @@ class Game(BossMixin):
             self.py += a * (cy - self.py)
             self.ny += a * (face.nose_y - self.ny)
             self.nvx += 0.4 * ((self.px - prev) - self.nvx)
+        if self.fixed_box:
+            self.pbox_w, self.pbox_h = self.fixed_box
+            return
         # Uzaktan oynayanin kutusu cok kuculmesin (hem kolaylasmasin hem gorunur kalsin)
         self.pbox_w = max(self.W * 0.10, face.box[2] - face.box[0])
         self.pbox_h = max(self.H * 0.17, face.box[3] - face.box[1])

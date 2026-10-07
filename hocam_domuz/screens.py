@@ -86,6 +86,8 @@ def draw_intro_screen(frame, game: Game, u: float):
         k = 0.55 + 0.45 * math.sin(t * 4)
         draw_pill(layer, "Başlamak için bir tuşa bas", cx, int(cy + 195 * u), 0.8, u, MAROON,
                   tuple(int(c * (0.7 + 0.3 * k)) for c in WHITE), 0.92, GOLD, 2)
+        txt(layer, "V: görünümü değiştir (arcade / klasik)", cx, int(cy + 235 * u), 0.5, (200, 210, 230), 1, u,
+            outline=False)
     txt(layer, "yazilimiyte.com   ·   @iyte_yazilim   ·   github.com/IYTE-Yazilim-Toplulugu", cx, H - 18 * u,
         0.45, (200, 210, 230), 1, u, outline=False)
     _merge_layer(frame, layer, e)
