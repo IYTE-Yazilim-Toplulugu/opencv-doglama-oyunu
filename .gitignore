@@ -1,0 +1,13 @@
+venv/
+__pycache__/
+*.tflite
+*.part
+selftest_ekran.png
+leaderboard.json
+selftest_*.png
+pose_landmarker_lite.task
+.venv/
+.DS_Store
+.idea/
+.vscode/
+leaderboard.json.bak
