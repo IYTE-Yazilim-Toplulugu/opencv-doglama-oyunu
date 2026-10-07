@@ -18,7 +18,7 @@ python iyte_kacis.py
 Test edilen ortam: Python 3.13, MediaPipe 1.0.1, OpenCV 5.0 (Windows). MediaPipe'ın yeni Tasks API'sini (`mediapipe.tasks.python.vision`) kullanır; daha eski sürümler denenmedi.
 - İlk çalıştırmada yüz algılama modeli (~230 KB) otomatik indirilir.
 - Başka kamera: `python iyte_kacis.py --camera 1`
-- Görünüm: varsayılan **8-bit arcade** (pixel-art İYTE kampüsü, kamera köşede küçük önizleme). Kamera görüntüsü üzerinde oynamak için `--stil klasik`.
+- Görünüm: varsayılan **8-bit arcade** (pixel-art İYTE kampüsü, kamera köşede küçük önizleme). Kamera görüntüsü üzerinde oynamak için `--stil klasik`. Oyun içinde **V** tuşu iki görünüm arasında anında geçiş yapar (isim, en iyi GANO ve leaderboard korunur; o anki tur baştan başlar).
 - **Ayakta oynamak için (deneysel):** `python iyte_kacis.py --mode vucut` — tüm vücut pozundan başı bulur, 2-3 m uzaktan çalışır. İlk çalıştırmada poz modeli (~6 MB) iner. Yüz takibine göre daha yavaş olabilir.
 - Kamerasız otomatik test: `python iyte_kacis.py --selftest`
 

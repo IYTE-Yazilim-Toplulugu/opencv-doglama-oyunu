@@ -308,6 +308,7 @@ def draw_intro_px(cv, game: Game):
     draw_text(cv, shown + cursor, LW // 2, 86, C["gold"], scale=3, anchor="c", grad=(C["yellow"], C["orange"]))
     if t > 2.4 and int(t * 2) % 2 == 0:
         draw_text(cv, "> BİR TUŞA BAS <", LW // 2, 124, C["white"], scale=1, anchor="c", outline=True)
+        draw_text(cv, "V: GÖRÜNÜM DEĞİŞTİR", LW // 2, 138, C["gray1"], anchor="c", shadow=None)
     draw_text(cv, "YAZILIMIYTE.COM   @IYTE_YAZILIM", LW // 2, 168, C["gray1"], anchor="c", outline=True)
 
 
